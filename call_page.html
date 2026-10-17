@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📞 AI 实时通话</title>
+<style>
+  /* 浅色（默认）——微信聊天观感 */
+  :root {
+    --bg:#ededed; --panel:#ffffff; --fg:#191919; --dim:#8a8a8a; --line:#dcdcdc;
+    --ac:#07c160; --ac-ink:#ffffff;
+    --user-bg:#95ec69; --user-fg:#111111;
+    --ai-bg:#ffffff; --ai-fg:#191919;
+    --bar-bg:#f7f7f7;
+  }
+  /* 深色——跟随应用主题 */
+  body.dark {
+    --bg:#111214; --panel:#1c1d20; --fg:#e6e6e6; --dim:#8b8b8b; --line:#2c2e33;
+    --ac:#3eb575; --ac-ink:#08130d;
+    --user-bg:#3eb575; --user-fg:#08130d;
+    --ai-bg:#26282c; --ai-fg:#e6e6e6;
+    --bar-bg:#1c1d20;
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+         display:flex; flex-direction:column; }
+
+  /* 顶部标题栏（微信式） */
+  header { flex:0 0 auto; text-align:center; padding:10px 12px 8px;
+           background:var(--bar-bg); border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header .sub { color:var(--dim); font-size:11px; margin-top:3px; line-height:1.4; }
+
+  .bar { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+         justify-content:center; padding:8px 12px; font-size:12px; color:var(--dim); }
+  .chip { background:var(--panel); border:1px solid var(--line); padding:3px 10px;
+          border-radius:20px; display:inline-flex; align-items:center; gap:6px; }
+  #mem { color:var(--ac); font-weight:600; }
+  .btn-mini { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+              cursor:pointer; border-radius:14px; padding:3px 10px; font-size:12px; }
+  .btn-mini:hover { border-color:var(--ac); color:var(--ac); }
+
+  #status { flex:0 0 auto; text-align:center; font-size:12px; color:var(--ac);
+            min-height:18px; padding:0 12px 4px; }
+
+  /* 聊天区（微信灰底） */
+  #stage { flex:1 1 0; overflow-y:auto; padding:12px 10px; display:flex;
+           flex-direction:column; gap:12px; background:var(--bg); }
+  .row { display:flex; align-items:flex-start; gap:8px; max-width:100%; }
+  .row.user { flex-direction:row-reverse; }
+  .ava { flex:0 0 auto; width:34px; height:34px; border-radius:7px;
+         background:var(--panel); border:1px solid var(--line);
+         display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .bubble { position:relative; max-width:calc(100% - 92px); padding:9px 12px;
+            border-radius:8px; word-break:break-word; white-space:pre-wrap;
+            font-size:14px; line-height:1.6; box-shadow:0 1px 1px rgba(0,0,0,.06); }
+  .row.user .bubble { background:var(--user-bg); color:var(--user-fg); }
+  .row.ai .bubble { background:var(--ai-bg); color:var(--ai-fg); }
+  /* 气泡小尾巴 */
+  .row.user .bubble::after, .row.ai .bubble::after {
+    content:""; position:absolute; top:11px; width:0; height:0;
+    border:6px solid transparent; }
+  .row.user .bubble::after { right:-11px; border-left-color:var(--user-bg); }
+  .row.ai .bubble::after { left:-11px; border-right-color:var(--ai-bg); }
+
+  /* 底部操作栏 */
+  .ctrl { flex:0 0 auto; background:var(--bar-bg); border-top:1px solid var(--line);
+          padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+          display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  .talkbtn { width:72px; height:72px; border-radius:50%; border:none; cursor:pointer;
+             background:var(--ac); color:var(--ac-ink); font-size:22px;
+             box-shadow:0 3px 10px rgba(0,0,0,.18); user-select:none; -webkit-user-select:none;
+             touch-action:none; transition:transform .1s; }
+  .talkbtn:active,.talkbtn.rec { transform:scale(.93); background:#fa5151; color:#fff; }
+  .talkbtn:disabled { filter:grayscale(.7); cursor:not-allowed; }
+  .autobtn { height:44px; padding:0 18px; border-radius:22px; border:1px solid var(--ac);
+             background:transparent; color:var(--ac); cursor:pointer; font-size:14px;
+             font-weight:600; }
+  .autobtn.on { background:var(--ac); color:var(--ac-ink); }
+  .hint { color:var(--dim); font-size:11px; text-align:center; line-height:1.7;
+          flex-basis:100%; }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%;
+         background:var(--ac); margin-right:6px; animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .pulse { animation:pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(7,193,96,.4)}
+                     50%{box-shadow:0 0 0 14px rgba(7,193,96,0)} }
+</style>
+</head>
+<body>
+  <header>
+    <h1 id="peer">AI 实时通话</h1>
+    <div class="sub">自动对话（免按键）· 按住说话（对讲）</div>
+  </header>
+  <div class="bar">
+    <span class="chip">🧠 记忆 <b id="mem">0</b> 轮</span>
+    <button class="btn-mini" id="clearMem">🗑 清空记忆</button>
+    <button class="btn-mini" id="clearChat">🧹 清空字幕</button>
+  </div>
+  <div id="status">就绪。可开启「自动对话」，或按住下方按钮说话。</div>
+  <div id="stage"></div>
+  <div class="ctrl">
+    <button id="autobtn" class="autobtn" type="button">▶ 开启自动对话</button>
+    <button id="ptt" class="talkbtn" type="button" title="按住说话">🎤</button>
+    <div class="hint">
+      自动对话：说话停顿约 0.7s 自动发送，TA 说完自动继续聆听。
+      想插嘴直接开口说话即可打断。每轮需 识别→思考→合成 数秒，请留出节奏。
+    </div>
+  </div>
+<script>
+/* ============ 主题跟随（读取主页面选择的 浅色/深色/跟随系统） ============ */
+(function(){
+  var valid = function(m){ return m === "light" || m === "dark" || m === "system"; };
+  var mode = "";
+  try { mode = localStorage.getItem("vc_theme") || ""; } catch(e){}
+  if (!valid(mode)) {
+    // 浏览器里还没记过主题时（换端口 / 新设备 / 清了缓存），用服务端注入的配置值
+    mode = window.__VC_THEME__;
+    if (!valid(mode)) mode = "system";
+  }
+  var apply = function(){
+    var dark = mode === "dark" || (mode === "system" && window.matchMedia &&
+               window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.body.classList.toggle("dark", dark);
+  };
+  apply();
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", function(){ if(mode === "system") apply(); });
+  } catch(e){}
+  // 主页面切主题时用 postMessage 通知（iframe 不会自己重载）
+  window.addEventListener("message", function(e){
+    var d = e && e.data;
+    if (!d || d.type !== "vc_theme") return;
+    if (valid(d.mode)) { mode = d.mode; apply(); }
+  });
+  // 单独打开 /call 的标签页，靠 storage 事件跟主页面同步
+  window.addEventListener("storage", function(e){
+    if (e.key !== "vc_theme" || !valid(e.newValue)) return;
+    mode = e.newValue; apply();
+  });
+})();
+
+/* ============ 基础元素 ============ */
+const statusEl = document.getElementById('status');
+const stageEl = document.getElementById('stage');
+const ptt = document.getElementById('ptt');
+const autobtn = document.getElementById('autobtn');
+const memEl = document.getElementById('mem');
+
+function setStatus(txt, live){ statusEl.innerHTML=(live?'<span class="dot"></span>':'')+txt; }
+/* 微信式消息：左侧头像 + 气泡（用户靠右） */
+function addMsg(who, text){ if(!text)return;
+  const row=document.createElement('div'); row.className='row '+who;
+  const ava=document.createElement('div'); ava.className='ava';
+  ava.textContent = who==='user' ? '🧑' : '🌱';
+  const b=document.createElement('div'); b.className='bubble'; b.textContent=text;
+  row.appendChild(ava); row.appendChild(b); stageEl.appendChild(row);
+  stageEl.scrollTop=stageEl.scrollHeight; return b; }
+
+/* ============ 音频播放队列（支持块间隔 gap 与即时打断） ============ */
+let queue=[], playing=false, gapTimer=null;
+const player=new Audio();
+function flushQueue(){ queue=[]; }
+function outputting(){ return playing || queue.length>0 || aiSpeaking; }  // 是否正在“出声”
+function stopAudio(){ flushQueue(); player.pause(); player.currentTime=0;
+  if(gapTimer){clearTimeout(gapTimer); gapTimer=null;} playing=false; }
+function next(){
+  if(queue.length===0){ playing=false; onAiSpeakEnd(); return; }
+  const item=queue.shift();
+  try{
+    const bytes=atob(item.b64), arr=new Uint8Array(bytes.length);
+    for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+    playing=true;
+    player.src=URL.createObjectURL(new Blob([arr],{type:'audio/wav'}));
+    player.play().then(()=>{
+      player.onended=()=>{
+        if(gapTimer) clearTimeout(gapTimer);
+        if(queue.length){ const wait=queue[0].gap||0; gapTimer=setTimeout(next, wait); }
+        else { playing=false; onAiSpeakEnd(); }
+      };
+    }).catch(()=>{ playing=false; onAiSpeakEnd(); next(); });
+  }catch(e){ playing=false; onAiSpeakEnd(); next(); }
+}
+function playWav(b64, gap){ queue.push({b64, gap:gap||0}); if(!playing) next(); }
+
+/* ============ SSE 状态 ============ */
+let aiSpeaking=false, busy=false;   // busy=服务器正处理本轮
+let aiBubble=null, aiPending='';
+function maybeRearm(){
+  if(!A.on) return;
+  if(playing||queue.length>0) return;      // 语音还在放，等它放完
+  if(aiSpeaking||busy) return;
+  autoToListen('✅ TA 说完了，继续听你说…');
+}
+function onAiSpeakEnd(){ maybeRearm(); }
+function onEvent(ev){
+  switch(ev.type){
+    case 'status': setStatus(ev.text, ev.phase==='asr'||ev.phase==='think'||ev.phase==='speak'); break;
+    case 'user': addMsg('user', ev.text); break;
+    case 'begin':
+      aiSpeaking=true; busy=true;
+      setStatus('🔊 TA 正在说话…（可打断）');
+      aiBubble=addMsg('ai','…'); aiPending='';
+      break;
+    case 'audio':
+      if(aiBubble){ aiPending=(aiPending+ev.text).replace(/[，。！？!?、；;…\s]+$/,'');
+        aiBubble.textContent=aiPending+'…'; stageEl.scrollTop=stageEl.scrollHeight; }
+      playWav(ev.b64, ev.gap);
+      break;
+    case 'done':
+      if(aiBubble) aiBubble.textContent=ev.full||aiPending;
+      aiBubble=null; aiPending='';
+      if(ev.turns) memEl.textContent=ev.turns;
+      aiSpeaking=false; busy=false;
+      if(!playing && !queue.length){ if(A.on) autoToListen('✅ TA 说完了，继续听你说…'); else setStatus('✅ 本条回复完毕。'); }
+      else setStatus('🔊 TA 还在把话说完…');
+      break;
+    case 'error':
+      setStatus('❌ '+ev.msg, false);
+      if(aiBubble){ aiBubble.textContent=aiPending||'(出错了)'; aiBubble=null; aiPending=''; }
+      aiSpeaking=false; busy=false;
+      if(A.on) autoToListen('😅 这轮出了点问题，你可以再说一次');
+      break;
+  }
+}
+
+/* ============ HTTP ============ */
+let ctrl=null;
+async function readSSE(resp){
+  const reader=resp.body.getReader(), dec=new TextDecoder(); let buf='';
+  for(;;){ const {done,value}=await reader.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true}); let idx;
+    while((idx=buf.indexOf('\n\n'))>=0){ const chunk=buf.slice(0,idx); buf=buf.slice(idx+2);
+      for(const line of chunk.split('\n')) if(line.startsWith('data:')){
+        try{ onEvent(JSON.parse(line.slice(5).trim())); }catch(e){}
+      } } }
+}
+function sendTurn(formData){
+  setStatus('🧠 发送识别中…', true); busy=true;
+  ctrl=new AbortController();
+  fetch('/api/turn',{method:'POST',body:formData,signal:ctrl.signal})
+    .then(readSSE)
+    .catch(err=>{ if(err.name!=='AbortError'){ setStatus('❌ 连接失败，请重试',false); failTurn(); } })
+    .finally(()=>{ ctrl=null; });
+}
+function abortTurn(){ stopAudio(); if(ctrl){ try{ctrl.abort();}catch(e){} ctrl=null; }
+  aiBubble=null; aiPending=''; aiSpeaking=false; busy=false; }
+
+/* ============ 录音（按住说话） ============ */
+function pickMime(){ const c=['audio/webm;codecs=opus','audio/webm','audio/mp4',''];
+  for(const m of c) if(!m || (window.MediaRecorder&&MediaRecorder.isTypeSupported(m))) return m; return ''; }
+let rec=null, recChunks=[], recMime='';
+function startRecord(){
+  stopRecord();                 // 结束旧录音段
+  abortTurn();                  // 打断 AI（若在播放/处理中）
+  const useExisting = !!(A.on && A.stream);   // 自动模式复用长开麦克风流
+  const finish = stream => {
+    recMime=pickMime();
+    rec=new MediaRecorder(stream, recMime?{mimeType:recMime}:undefined);
+    recChunks=[];
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+    rec.onstop=()=>{
+      if(!useExisting) stream.getTracks().forEach(t=>t.stop());   // 自动模式不关共享流
+      const blob=new Blob(recChunks,{type:recMime||'audio/webm'}); rec=null;
+      if(blob.size>1800){ const fd=new FormData(); fd.append('audio',blob,'v.webm'); sendTurn(fd); }
+      else if(A.on) autoToListen('⚠️ 没听清，再说一次？');
+    };
+    rec.start(); ptt.classList.add('rec');
+    if(A.on) setStatus('🎙️ 正在听你说…（停顿自动发送）', true);
+    else setStatus('🎙️ 正在录音…松开发送', true);
+    if(A.on) { recTimer=setTimeout(()=>{ try{rec.stop();}catch(e){} }, 12000); }
+  };
+  if(useExisting){ finish(A.stream); return; }
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}})
+    .then(finish)
+    .catch(()=>{ if(A.on) autoToListen('❌ 无法用麦克风（需 localhost/HTTPS）'); else setStatus('❌ 麦克风不可用',false); });
+}
+let recTimer=null;
+function stopRecord(){ if(recTimer){clearTimeout(recTimer); recTimer=null;}
+  ptt.classList.remove('rec'); if(rec&&rec.state!=='inactive'){ try{rec.stop();}catch(e){} } }
+function sendTextMsg(text){ text=(text||'').trim(); if(!text) return;
+  abortTurn(); const fd=new FormData(); fd.append('text',text); sendTurn(fd); }
+
+/* ============ 按住说话事件（对讲；也用于自动模式打断兜底） ============ */
+let manualHold=false;   // 是否正在手动按住（自动模式下手动按住时暂停 VAD 自动判定）
+ptt.addEventListener('pointerdown',e=>{ e.preventDefault(); manualHold=true; startRecord(); });
+window.addEventListener('pointerup', ()=>{ if(manualHold){ manualHold=false; stopRecord(); } });
+window.addEventListener('pointercancel', ()=>{ if(manualHold){ manualHold=false; stopRecord(); } });
+
+/* ============ 免按键自动对话（VAD） ============ */
+const A = { on:false, actx:null, analyser:null, micSrc:null, stream:null,
+            listening:false, recording:false, noiseBase:0.004 };
+let rafId=null, voiceOn=false, voiceOnAt=0, silenceAt=0;
+function rmsFromAnalyser(){
+  const buf=new Float32Array(A.analyser.fftSize);
+  A.analyser.getFloatTimeDomainData(buf);
+  let s=0; for(let i=0;i<buf.length;i++) s+=buf[i]*buf[i];
+  return Math.sqrt(s/buf.length);
+}
+function startBargeinWatch(){
+  if(!A.on || A.recording) return;
+  // AI 播放期间自动模式开麦监听，检测到明显人声则打断并开始录音
+  A.listening=true; voiceOn=false;
+}
+function autoToListen(text){ A.listening=true; voiceOn=false; A.recording=false;
+  setStatus(text||'🎧 聆听中…随时可以开口说话', true); }
+function autoIdle(){ A.listening=false; }
+function startAuto(){
+  if(A.on) return;
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}})
+    .then(stream=>{
+      A.on=true; A.stream=stream;
+      A.actx=new (window.AudioContext||window.webkitAudioContext)();
+      A.micSrc=A.actx.createMediaStreamSource(stream);
+      A.analyser=A.actx.createAnalyser(); A.analyser.fftSize=1024; A.analyser.smoothingTimeConstant=0.4;
+      A.micSrc.connect(A.analyser);
+      autobtn.textContent='⏹ 挂断'; autobtn.classList.add('on');
+      autoToListen('🎧 已开启自动对话…直接说话即可，停顿自动发送');
+      vadLoop();
+    })
+    .catch(()=>{ setStatus('❌ 无法使用麦克风（需 localhost/HTTPS）',false); });
+}
+function stopAuto(){
+  if(!A.on) return;
+  A.on=false; A.listening=false; A.recording=false;
+  stopRecord();
+  if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+  try{ A.micSrc&&A.micSrc.disconnect(); }catch(e){}
+  try{ A.stream&&A.stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  try{ A.actx&&A.actx.close(); }catch(e){}
+  A.actx=A.analyser=A.micSrc=A.stream=null;
+  autobtn.textContent='▶ 开启自动对话'; autobtn.classList.remove('on');
+  setStatus('已挂断自动对话。可再次开启，或按住说话。');
+}
+autobtn.addEventListener('click', ()=>{ A.on? stopAuto() : startAuto(); });
+
+function vadLoop(){
+  if(!A.on) return;
+  if(!A.analyser){ rafId=requestAnimationFrame(vadLoop); return; }
+  const r=rmsFromAnalyser();
+  const out = outputting();
+  const thr = out ? 0.05 : 0.02;        // AI 出声时提高门槛，减少扬声器回声误触发
+  const sp = r>thr;
+  const now=performance.now();
+  if(sp){ if(!voiceOn){ voiceOn=true; voiceOnAt=now; } }
+  else { if(voiceOn){ voiceOn=false; } if(!silenceAt||silenceAt<voiceOnAt) silenceAt=now; }
+  if(sp) silenceAt=0;
+
+  // 手动按住时交给对讲逻辑，自动判定暂停
+  const mayTalk = !busy || out;   // 空闲随时可说；AI 出声/开口阶段可打断
+  if(!manualHold && !rec && A.listening && mayTalk && sp && now-voiceOnAt>=300){
+    // 语音稳定出现 →（AI 若在说话则打断）→ 开始录音
+    if(out || busy){ abortTurn(); }
+    A.recording=true; voiceOn=false;
+    startRecord();                     // startRecord 内含 abortTurn + rec.onstop→send
+  }
+  // 录音段结束（用户停顿 ≥0.7s）自动停 → onstop 自动发送
+  if(!manualHold && A.recording && !voiceOn && silenceAt && (now-silenceAt)>=700){
+    A.recording=false; A.listening=true; stopRecord();
+  }
+  rafId=requestAnimationFrame(vadLoop);
+}
+
+/* ============ 顶部按钮：清空记忆 / 清空字幕 ============ */
+document.getElementById('clearMem').addEventListener('click', ()=>{
+  fetch('/api/call/reset',{method:'POST'}).then(()=>{ memEl.textContent='0'; setStatus('🧠 已清空通话上下文记忆'); }).catch(()=>{});
+});
+document.getElementById('clearChat').addEventListener('click', ()=>{
+  stageEl.innerHTML=''; aiBubble=null; aiPending='';
+});
+
+/* ============ 初始化：加载记忆轮数 ============ */
+fetch('/api/call/memory').then(r=>r.json()).then(d=>{ if(d.turns) memEl.textContent=d.turns; }).catch(()=>{});
+window.addEventListener('beforeunload', ()=>{ try{ stopAuto(); }catch(e){} });
+</script>
+</body>
+</html>

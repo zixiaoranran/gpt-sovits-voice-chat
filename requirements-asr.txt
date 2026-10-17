@@ -1,0 +1,5 @@
+# 可选：装了才有「对讲 /call」与「语音输入」
+# 注意：约 2 GB；首次运行还会从 modelscope 下载语音识别模型（约 1 GB）
+funasr==1.0.27
+torch==2.0.0
+torchaudio==2.0.0

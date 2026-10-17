@@ -1,0 +1,20 @@
+# 运行期生成 / 私有内容，绝不入库
+chat_config.json
+conversations/
+output/
+logs/
+tts_server.log
+*.log
+__pycache__/
+*.pyc
+
+# 模型权重与音频素材
+*.pth
+*.ckpt
+*.wav
+*.webm
+*.mp3
+
+# 头像：用户自备，只放占位图
+assets/avatars/*
+!assets/avatars/placeholder.png

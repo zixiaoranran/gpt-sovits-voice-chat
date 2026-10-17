@@ -1,0 +1,9 @@
+# 换行符统一：仓库里存 LF，Windows 的 .bat 用 CRLF 才不会出错
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

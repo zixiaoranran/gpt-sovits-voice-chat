@@ -1,0 +1,363 @@
+/* 本页全部样式。由 FastAPI 路由 /vc_ui.css 每次请求现读磁盘，
+   所以改完这里只要刷新浏览器（Ctrl+F5）即可生效，不用重启服务。
+   （顺便：现在不再走 gr.Blocks(css=...)，Gradio 也就不会再把这份样式复制一份加前缀，
+   之前那种「副本优先级压过本尊」的怪事不会再有了。） */
+
+html, body { margin:0 !important; padding:0 !important; }
+footer { display:none !important; }
+.gradio-container { max-width:100% !important; width:100% !important; padding:0 !important; }
+
+/* 左会话栏 + 右主区：用 Gradio 原生的行/列自然并排，不用绝对定位（避免错位）。
+   收起/展开的几何由 ui.js 的 __vcSetSide 用“内联 !important”直接改（见那边注释），
+   这里只负责默认值 + 过渡动画，所以不要再写 body.vc_collapsed 的覆盖规则。 */
+#vc_root { gap:0 !important; align-items:stretch !important; flex-wrap:nowrap !important; }
+#vc_sidebar { flex:0 0 232px !important; width:232px !important; max-width:232px !important;
+              min-width:0 !important;
+              flex-direction:column !important; gap:8px !important;
+              padding:12px 10px !important; box-sizing:border-box !important;
+              border-right:1px solid var(--border-color-primary) !important;
+              background:var(--background-fill-secondary) !important;
+              overflow:hidden !important;
+              transition:flex-basis .3s ease, max-width .3s ease, width .3s ease,
+                         padding .3s ease, opacity .24s ease, border-right-width .3s ease !important; }
+#vc_sidebar button { white-space:nowrap !important; }
+#vc_main { flex:1 1 auto !important; min-width:0 !important; }
+/* 收起后在原位出现的“展开”按钮：默认收成 0 宽，展开时由 JS 撑到 40px */
+#vc_show { flex:0 0 auto !important; align-self:flex-start !important;
+           width:0 !important; max-width:0 !important; min-width:0 !important;
+           padding:0 !important; margin:0 !important; overflow:hidden !important;
+           opacity:0 !important; pointer-events:none !important;
+           transition:width .3s ease, margin .3s ease, opacity .24s ease !important; }
+#vc_sidebar .block, #vc_sidebar .form, #vc_sidebar .wrap {
+              border:none !important; background:transparent !important;
+              box-shadow:none !important; padding:0 !important; margin:0 !important; }
+#vc_brand { font-size:15px !important; font-weight:700 !important; margin:0 0 2px !important;
+            color:var(--body-text-color) !important; }
+#vc_brand p { margin:0 !important; }
+#vc_newbtn { width:100% !important; border-radius:12px !important; }
+#vc_collapsebtn { width:100% !important; border-radius:12px !important; margin-top:2px !important; }
+#vc_sidelabel { font-size:12px !important; opacity:.6 !important; margin:4px 2px 0 !important; }
+#vc_sidelabel p { margin:0 !important; }
+#vc_empty p { font-size:12px !important; opacity:.55 !important; margin:2px !important; }
+
+/* 历史对话：像 DeepSeek 网页版一样逐条平铺；每行 hover 时右侧露出「⋮」 */
+#vc_convlist { flex:1 1 auto !important; min-height:0 !important; overflow-y:auto !important;
+               overflow-x:hidden !important; position:relative !important;
+               gap:2px !important; padding:2px 0 !important; }
+/* gr.render 生成的容器/行自带 min_width:320，会顶破 232px 的侧栏把「⋮」挤出去，这里全部压平。
+   注意排除 #vc_menu_pop —— 它是 convlist 的直接子元素，但它要按内容宽收缩，不能被拉成 100%。 */
+#vc_convlist, #vc_convlist > *:not(#vc_menu_pop), #vc_convlist .vc_convrow {
+               min-width:0 !important; max-width:100% !important; width:100% !important; }
+#vc_sidebar .vc_convrow { gap:2px !important; align-items:center !important;
+                          margin:0 !important; padding:0 !important; flex-wrap:nowrap !important; }
+#vc_sidebar .vc_convtit { flex:1 1 0 !important; width:auto !important; min-width:0 !important;
+                          max-width:100% !important; text-align:left !important;
+                          justify-content:flex-start !important; background:transparent !important;
+                          border:none !important; box-shadow:none !important; min-height:0 !important;
+                          color:var(--body-text-color) !important; font-size:13px !important;
+                          padding:7px 8px !important; border-radius:8px !important;
+                          overflow:hidden !important; text-overflow:ellipsis !important; }
+#vc_sidebar .vc_convtit:hover { background:var(--background-fill-primary) !important; }
+#vc_sidebar .vc_convrow.vc_on .vc_convtit { background:var(--color-accent-soft) !important;
+                                            font-weight:600 !important; }
+#vc_sidebar .vc_dots { flex:0 0 34px !important; width:34px !important; min-width:34px !important;
+                       max-width:34px !important; padding:0 !important; min-height:0 !important;
+                       background:transparent !important; border:none !important; box-shadow:none !important;
+                       color:var(--body-text-color-subdued) !important;
+                       opacity:0 !important; transition:opacity .15s ease !important; }
+#vc_sidebar .vc_convrow:hover .vc_dots,
+#vc_sidebar .vc_dots:focus { opacity:1 !important; }
+/* 「⋮」操作菜单：脱离文档流浮起来（不占位、不把下面的会话顶下去）。
+   宽度收成内容宽（不再留一大截空白），left/top 由 ui.js 的 __vcPlaceMenu
+   按「⋮」的位置算好后写在元素上：菜单左缘对齐「⋮」左缘，即文字正好在「⋮」正下方。
+   注意 min-width:0 —— Gradio 的 Column 默认会带 320px 的 min-width，不压掉就缩不窄。 */
+#vc_menu_pop { position:fixed !important; z-index:1200 !important;
+               width:max-content !important; min-width:0 !important; max-width:132px !important;
+               padding:4px !important; gap:1px !important;
+               background:var(--background-fill-primary) !important;
+               border:1px solid var(--border-color-primary) !important;
+               border-radius:10px !important; box-shadow:0 8px 22px rgba(0,0,0,.16) !important; }
+/* Gradio 的 Column/block 包装层自带 min-width，会顶住不让缩窄，这里一并压平 */
+#vc_menu_pop > *, #vc_menu_pop .block, #vc_menu_pop .form,
+#vc_menu_pop .wrap { min-width:0 !important; max-width:100% !important; }
+#vc_menu_pop button { width:100% !important; min-width:0 !important; max-width:none !important;
+                      text-align:left !important;
+                      justify-content:flex-start !important; white-space:nowrap !important;
+                      background:transparent !important; border:none !important;
+                      box-shadow:none !important; min-height:0 !important;
+                      font-size:12.5px !important; padding:6px 8px !important;
+                      border-radius:6px !important; color:var(--body-text-color) !important; }
+#vc_menu_pop button:hover { background:var(--background-fill-secondary) !important; }
+#vc_sidebar .vc_renamerow { gap:4px !important; align-items:center !important;
+                            flex-wrap:nowrap !important; }
+#vc_sidebar .vc_renamerow input { font-size:13px !important; padding:6px 8px !important;
+                                  border-radius:8px !important; }
+#vc_sidebar .vc_mini { flex:0 0 auto !important; min-width:0 !important; font-size:12px !important;
+                       padding:6px 8px !important; min-height:0 !important; }
+#vc_theme { margin-top:auto !important; padding-top:10px !important;
+            border-top:1px solid var(--border-color-primary) !important; }
+#vc_theme .wrap { flex-direction:column !important; gap:4px !important; }
+#vc_theme label { font-size:13px !important; }
+
+/* 对话主体：聊天区随剩余空间自适应，输入区贴底 */
+#vc_chat_main { display:flex !important; flex-direction:column !important;
+                height:calc(100vh - 46px) !important; height:calc(100dvh - 46px) !important;
+                gap:8px !important; padding:8px 14px 10px !important;
+                box-sizing:border-box !important; }
+#vc_chat_main > * { flex:0 0 auto !important; }
+#vc_chatbox { flex:1 1 0 !important; min-height:160px !important; height:auto !important;
+              border:none !important; box-shadow:none !important; background:transparent !important; }
+#vc_chatbox .wrapper, #vc_chatbox .bubble-wrap { height:100% !important; }
+
+/* 头像：Gradio 默认给头像图留了 6px 内边距，看着又小又空。
+   去掉内边距、让图铺满那个圆形边框（object-fit:cover 裁满不拉伸），和边框对齐。 */
+#vc_chatbox .avatar-container { width:38px !important; height:38px !important;
+                               padding:0 !important; overflow:hidden !important; }
+#vc_chatbox .avatar-container img { width:100% !important; height:100% !important;
+                                   padding:0 !important; object-fit:cover !important;
+                                   border-radius:50% !important; display:block !important; }
+#vc_chatbox .bubble-wrap { padding-top:6px !important; }
+
+/* 每条消息下方的小工具条（▶ 播放 / < 2/2 > 版本切换 / 重新加载 / 改写 / 复制 / 删除）
+   —— 由 ui.js 的 __vcInitMsgBar 注入，不在 Gradio 组件树里，只能靠 CSS/JS 自己管样式。
+   ★ 它是「这一行气泡的兄弟节点」（.message-wrap 的直接子元素），不是塞在气泡里面，
+   所以不会被气泡那个框包住；本身也不带外框，只是几个并排的小按钮。
+   提问靠右、回答靠左（vc-user / vc-bot 由 JS 打上）。 */
+#vc_chatbox .vc-msgbar { display:flex !important; align-items:center !important; gap:2px !important;
+                         flex-wrap:nowrap !important; box-sizing:border-box !important;
+                         width:max-content !important; max-width:100% !important;
+                         margin:4px calc(var(--spacing-xl, 8px) * 3) 6px !important;
+                         padding:0 !important;
+                         border:none !important; border-radius:0 !important;
+                         background:transparent !important; box-shadow:none !important; }
+#vc_chatbox .message-wrap > .vc-msgbar.vc-user { align-self:flex-end !important; }
+#vc_chatbox .message-wrap > .vc-msgbar.vc-bot  { align-self:flex-start !important; }
+/* 生成中的「……」和被删空的那条：整行藏掉（连气泡带按钮都不留） */
+#vc_chatbox .message-row.vc-empty { display:none !important; }
+/* 消息多、内容短时，别让 .message-wrap 的 space-between 把兄弟节点撑开 */
+#vc_chatbox .message-wrap { justify-content:flex-start !important; }
+/* 隐藏组件：服务端把「哪轮有语音 / 有几个版本」写在这里给 ui.js 读 */
+#vc_branchinfo { display:none !important; }
+#vc_chatbox .vc-mbtn { width:auto !important; min-width:0 !important; max-width:none !important;
+                       min-height:0 !important; height:auto !important; flex:0 0 auto !important;
+                       background:transparent !important; border:none !important; box-shadow:none !important;
+                       color:var(--body-text-color-subdued) !important; font-size:11px !important;
+                       line-height:1.4 !important; padding:3px 7px !important; border-radius:999px !important;
+                       white-space:nowrap !important; }
+#vc_chatbox .vc-mbtn:hover { background:var(--background-fill-secondary) !important;
+                             color:var(--body-text-color) !important; }
+/* ▶ 播放这条回答的语音；< 2/2 > 切换回答版本 */
+#vc_chatbox .vc-play { font-size:12px !important; padding:3px 8px !important; }
+#vc_chatbox .vc-ver { display:flex !important; align-items:center !important; gap:0 !important;
+                      margin-right:2px !important; }
+#vc_chatbox .vc-verbtn { font-size:12px !important; font-weight:600 !important;
+                         padding:3px 6px !important; }
+#vc_chatbox .vc-vernum { font-size:11px !important; padding:0 1px !important;
+                         color:var(--body-text-color-subdued) !important; user-select:none !important; }
+/* 删除的二次确认：原地把这一行换成「确认删除？确认/取消」 */
+#vc_chatbox .vc-q { font-size:11.5px !important; padding:0 4px !important; white-space:nowrap !important;
+                    color:var(--body-text-color-subdued) !important; }
+#vc_chatbox .vc-mbtn.vc-danger { color:#e5484d !important; font-weight:600 !important; }
+#vc_chatbox .vc-mbtn.vc-danger:hover { background:rgba(229,72,77,.12) !important; color:#e5484d !important; }
+/* 改写：就地弹出一个输入框 + 保存/取消 */
+#vc_chatbox .vc-editbox { display:flex !important; flex-direction:column !important;
+                          gap:4px !important; box-sizing:border-box !important;
+                          width:100% !important; max-width:100% !important;
+                          margin:6px calc(var(--spacing-xl, 8px) * 3) 6px !important; }
+#vc_chatbox .message-wrap > .vc-editbox.vc-user { align-self:flex-end !important; }
+#vc_chatbox .message-wrap > .vc-editbox.vc-bot  { align-self:flex-start !important; }
+#vc_chatbox .vc-editta { width:100% !important; min-height:56px !important; box-sizing:border-box !important;
+                         font-size:13px !important; line-height:1.5 !important; padding:6px 8px !important;
+                         border-radius:8px !important; resize:vertical !important; font-family:inherit !important;
+                         color:var(--body-text-color) !important;
+                         background:var(--background-fill-primary) !important;
+                         border:1px solid var(--border-color-primary) !important; }
+/* 消息操作的「隐藏按钮」：它就是个透明按钮，点它等于替前端把操作发给后端。
+   注意 elem_id 直接落在 <button> 上（Gradio 的 Button 没有外层 div），JS 里别写 #id button。 */
+#vc_msgop_btn { display:none !important; }
+/* 同上，隐藏文本框：装「这次点了哪条消息的哪个操作」，不占位 */
+#vc_msgop_spec { display:none !important; }
+
+/* 输入区：胶囊形、贴底 */
+#vc_inputrow { align-items:flex-end !important; gap:8px !important; }
+#vc_inputrow textarea { border-radius:18px !important; padding:10px 14px !important; }
+#vc_inputrow button { border-radius:18px !important; min-height:44px !important; }
+
+/* 状态与音频更省空间，减少视觉噪音 */
+#vc_status { min-height:0 !important; margin:0 !important; font-size:12px !important; opacity:.72; }
+#vc_status p { margin:0 !important; }
+#vc_audio { min-height:54px !important; }
+
+/* 标题统一用正文色，避免默认强调色（紫）显得突兀 */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5 { color:var(--body-text-color) !important; }
+.prose h4 { font-size:15px !important; }
+
+/* 手机端：侧栏改为顶部横向条，主区占满宽度 */
+@media (max-width: 760px) {
+  #vc_root { flex-direction:column !important; flex-wrap:wrap !important; }
+  #vc_sidebar { flex:1 1 auto !important; width:100% !important; max-width:none !important;
+                flex-direction:row !important; flex-wrap:wrap !important; align-items:center !important;
+                gap:6px !important; padding:6px 8px !important; overflow:visible !important;
+                border-right:none !important; border-bottom:1px solid var(--border-color-primary) !important; }
+  #vc_sidebar #vc_brand, #vc_sidebar #vc_sidelabel { display:none !important; }
+  #vc_sidebar #vc_newbtn { width:auto !important; }
+  /* 手机端不提供收起（顶部会话条常驻） */
+  #vc_collapsebtn { display:none !important; }
+  #vc_show { display:none !important; }
+  /* 历史对话在手机上是横向一条，左右滑动查看；「⋮」常显（触屏没有 hover） */
+  #vc_convlist, #vc_convlist > * { flex:1 1 100% !important; width:100% !important;
+                 flex-direction:row !important; flex-wrap:nowrap !important;
+                 overflow-x:auto !important; overflow-y:hidden !important; min-height:0 !important; }
+  #vc_convlist .vc_convrow { flex:0 0 auto !important; width:auto !important; }
+  #vc_sidebar .vc_convtit { flex:0 0 auto !important; width:auto !important; max-width:46vw !important; }
+  #vc_sidebar .vc_dots { opacity:1 !important; }
+  #vc_menu_pop { max-width:70vw !important; }
+  #vc_main { width:100% !important; }
+  #vc_theme { margin:0 !important; padding:0 !important; border-top:none !important;
+              flex:1 1 100% !important; }
+  #vc_theme .wrap { flex-direction:row !important; flex-wrap:wrap !important; gap:8px !important; }
+  #vc_theme label { font-size:12px !important; }
+  #vc_chat_main { height:calc(100dvh - 132px) !important; padding:6px 8px 8px !important;
+                  gap:6px !important; }
+  #vc_chatbox .message { width:100% !important; }
+  /* 窄屏：按钮条允许换行，别横向溢出 */
+  #vc_chatbox .vc-msgbar { flex-wrap:wrap !important; }
+  .tab-nav button { font-size:13px !important; padding:4px 10px !important; }
+}
+
+/* ── 实时通话（/call）嵌入区：高度跟着窗口走，别写死 640px ──
+   通话页本身是「顶部信息 + 中间舞台(flex:1) + 底部按钮」的满屏布局，
+   外面套一个固定高度的 iframe 就会在下方空出一大截，看着像没做适配。 */
+iframe[src="/call"] {
+  display:block !important;
+  width:100% !important;
+  height:calc(100vh - 200px) !important;
+  height:calc(100dvh - 200px) !important;
+  min-height:460px !important;
+  border:0 !important;
+  border-radius:12px !important;
+}
+@media (max-width: 760px) {
+  /* 手机端上方没有侧栏，留白更少 */
+  iframe[src="/call"] {
+    height:calc(100vh - 170px) !important;
+    height:calc(100dvh - 170px) !important;
+    min-height:420px !important;
+    border-radius:0 !important;
+  }
+}
+
+/* ── 板块分隔线 + 输入框描边：看得见但不突兀 ──
+   Soft 主题的 input_border_color 是 neutral_50（几乎等于没有），输入框看着像浮在空白里；
+   这里换成淡描边，再给每个 #### 标题上方加一条横线当分区（10% 太淡看不见，用 16%）。 */
+.gradio-container {
+  --input-border-color:rgba(15,23,42,.24) !important;
+  --input-border-color-focus:var(--color-accent) !important;
+  --border-color-primary:rgba(15,23,42,.16) !important;
+}
+body.dark .gradio-container,
+.gradio-container.dark {
+  --input-border-color:rgba(255,255,255,.22) !important;
+  --border-color-primary:rgba(255,255,255,.14) !important;
+}
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6,
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6,
+.gradio-container h2, .gradio-container h3, .gradio-container h4,
+.gradio-container h5, .gradio-container h6 {
+  margin:20px 0 10px !important;
+  padding:14px 0 9px !important;
+  border-top:1px solid rgba(15,23,42,.22) !important;
+  border-bottom:1px solid rgba(15,23,42,.22) !important;
+}
+/* 折叠区标题（全局设置 / 高级设置 / 情绪微调）：标题加粗 + 上下各一条线，把这一块框住。
+   Accordion 只认 elem_id（elem_classes 会被丢掉），所以按 id 认。 */
+#vc_gacc, #vc_aacc, #vc_emoacc {
+  border-top:1px solid rgba(15,23,42,.22) !important;
+  border-bottom:1px solid rgba(15,23,42,.22) !important;
+  margin:16px 0 !important;
+  padding:10px 0 !important;
+}
+button[aria-expanded],
+button[aria-expanded] * {
+  font-weight:700 !important;
+}
+body.dark #vc_gacc, body.dark #vc_aacc, body.dark #vc_emoacc {
+  border-top-color:rgba(255,255,255,.20) !important;
+  border-bottom-color:rgba(255,255,255,.20) !important;
+}
+body.dark .prose h1, body.dark .prose h2, body.dark .prose h3,
+body.dark .prose h4, body.dark .prose h5, body.dark .prose h6,
+body.dark .gradio-container h2, body.dark .gradio-container h3,
+body.dark .gradio-container h4, body.dark .gradio-container h5,
+body.dark .gradio-container h6 {
+  border-top-color:rgba(255,255,255,.20) !important;
+  border-bottom-color:rgba(255,255,255,.20) !important;
+}
+
+/* 聊天区里的标题、弹窗里的标题不要这条线 */
+#vc_chatbox h1, #vc_chatbox h2, #vc_chatbox h3, #vc_chatbox h4,
+#vc_chatbox h5, #vc_chatbox h6,
+#vc_keymodal h1, #vc_keymodal h2, #vc_keymodal h3, #vc_keymodal h4,
+#vc_keymodal h5, #vc_keymodal h6 {
+  border-top:0 !important;
+  padding-top:0 !important;
+  margin-top:8px !important;
+}
+body.dark .prose h1, body.dark .prose h2, body.dark .prose h3,
+body.dark .prose h4, body.dark .prose h5, body.dark .prose h6,
+body.dark .gradio-container h2, body.dark .gradio-container h3,
+body.dark .gradio-container h4, body.dark .gradio-container h5,
+body.dark .gradio-container h6 {
+  border-top-color:rgba(255,255,255,.20) !important;
+}
+body.dark 
+/* ── API 接口设置弹窗：整层盖在页面上的浮层（不撑长页面，也不往下顶内容） ── */
+#vc_keymodal {
+  position:fixed !important;
+  inset:0 !important;
+  width:100vw !important;
+  height:100vh !important;
+  max-height:none !important;
+  margin:0 !important;
+  padding:6vh 16px 24px !important;
+  background:rgba(0,0,0,.42) !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  overflow:auto !important;
+  z-index:2147483000 !important;
+}
+#vc_keymodal > * {
+  max-width:580px !important;
+  margin:0 auto !important;
+  background:var(--background-fill-primary, #fff) !important;
+  color:var(--body-text-color, #1e293b) !important;
+  border:1px solid var(--border-color-primary, #dcdcdc) !important;
+  border-radius:14px !important;
+  box-shadow:0 20px 60px rgba(0,0,0,.30) !important;
+  padding:16px 18px 14px !important;
+}
+body.dark #vc_keymodal > * {
+  background:var(--background-fill-secondary, #1e293b) !important;
+}
+
+/* ── 标题/标签只留文字颜色，去掉 Soft 主题默认的浅蓝底块 ──
+   那个蓝框来自 --block-label-* 这组主题变量（浅色 primary_100，深色 primary_600）。
+   这里直接把底色、圆角、内边距清零；蓝色文字（深色模式白字）保持不动。 */
+.gradio-container,
+.gradio-container.dark,
+body.dark,
+body.dark .gradio-container {
+  --block-label-background-fill: transparent !important;
+  --block-label-background-fill-dark: transparent !important;
+  --block-label-border-width: 0px !important;
+  --block-label-shadow: none !important;
+  --block-label-radius: 0px !important;
+  --block-label-padding: 0px !important;
+  --block-label-margin: 0px 0px 6px 0px !important;
+  --block-title-background-fill: transparent !important;
+  --block-title-background-fill-dark: transparent !important;
+  --block-title-border-width: 0px !important;
+  --block-title-radius: 0px !important;
+  --block-title-padding: 0px !important;
+}
