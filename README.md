@@ -189,6 +189,22 @@ requirements*.txt         依赖清单
 
 权重扫描不预设版本号：`GPT_weights*`、`SoVITS_weights*` 与 `logs/` 下的权重全部列出。官方底模按命名规则识别（GPT 为 `s1*.ckpt`，SoVITS 为 `s2*.pth`），并排除 `vocoder` 及 `sv/` 目录下的非 TTS 权重。v2Pro 系列在列表中优先排序。
 
+## 与上游项目的关系
+
+本仓库仅包含 Web 界面与交互逻辑。下列项目由本仓库调用或作为依赖使用，其源代码、模型权重与训练素材均不随本仓库分发。
+
+| 项目 | 使用方式 | 许可证 |
+| --- | --- | --- |
+| GPT-SoVITS | 通过 HTTP 调用其 `api_v2.py`（`/tts`、`/set_gpt_weights`、`/set_sovits_weights`） | MIT |
+| Gradio | pip 依赖，提供界面 | Apache-2.0 |
+| FastAPI / Uvicorn | pip 依赖，提供路由与 ASGI 服务 | MIT / BSD-3-Clause |
+| FunASR（可选） | pip 依赖，用于实时对讲与语音输入 | 代码与模型许可不同，模型另受 `MODEL_LICENSE` 约束 |
+| FFmpeg | 调用可执行文件完成音频转码 | LGPL / GPL（视构建而定） |
+
+各项目许可证以其官方仓库为准。本仓库与上述项目没有隶属或官方关联。
+
+本仓库的增量部分为：界面与交互流程、情绪系统（十种情绪的参考音频与参数管理、逐项试听）、OpenAI 兼容接口的连通性判断、API Key 掩码与弹窗编辑、一键部署脚本、权重与参考音频的扫描逻辑。
+
 ## 隐私与安全
 
 API Key 仅保存在本机 `chat_config.json`，界面与浏览器端配置中只呈现掩码。会话记录与合成音频分别存放于 `conversations/` 与 `output/`，均由 `.gitignore` 排除。程序仅访问使用者配置的模型接口与本机 TTS 服务。默认监听 `127.0.0.1`，未开启局域网访问时外部设备无法接入。
